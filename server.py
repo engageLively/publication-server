@@ -6,13 +6,15 @@ from json import dumps
 
 from google.cloud import datastore, storage
 from flask import Flask, request, abort, jsonify
-
+from flask_cors import CORS
 
 
 datastore_client = datastore.Client()
 storage_client = storage.Client()
 
 app = Flask(__name__)
+CORS(app)
+
 
 # query = datastore_client.query(kind='User')
 # users = list(query.fetch())
@@ -27,7 +29,7 @@ def _list_blobs(bucket_name, prefix):
 
     # Note: The call returns a response only when the iterator is consumed.
     prefix_len = len(prefix) + 1
-    return [blob.name[prefix_len:] for blob in blobs if blob.name.startswith(prefix)]
+    return [blob.name[prefix_len:] for blob in blobs if blob.name.startswith(prefix) and len(blob.name) > prefix_len]
 
 def _find_user(user):
     # find a user and return its record, or None
@@ -172,7 +174,6 @@ def delete_dashboard():
         -- user <string>
         -- name <string>
     '''
-   
 
 @app.route('/')
 @app.route('/routes')
@@ -181,16 +182,57 @@ def show_routes():
     Return the routes of this server as a JSON structure
     '''
     return jsonify({
-        '/, /routes': {"method": 'GET', "parameters": [], "side effects": "None", "returns": "Dictionary of routes as a JSON object", "errors": "None"},
-        '/add_user': {"method": 'POST', "parameters": ["user"], "side effects": "adds the user to the database and increments the user count", "returns": "User name and number as a JSON dictionary", "errors": "400 if the user exists"},
-        '/list_user_dashboards/<user>': {"method": 'GET', "parameters":[],  "side effects": "None", "returns": "Return a JSON list of all the dashboards published by the user.", "errors": "400 if the user doesn't exist"},
-        '/add_dashboard': {"method": 'POST', "parameters": ["user", "name", "body"], "side effects": "Add the dashboard value in the body of the post to the user's folder, under the name chosen by the user, overwriting if the dashboard exists",  "returns": "The URL of the dashboard", "errors": "400 if the user doesn't exist"},
-        '/get_dashboard/<user>/<name>': {"method": 'GET', "parameters": [], "side effects": "None",  "returns": "The dashboard as a JSON string", "errors": "400 if the user or dashboard of that name doesn't exist"},
-        '/get_dashboard_link/<user>/<name>': {"method": 'GET', "parameters": [], "side effects": "None",  "returns": "The URL of the  dashboard as string", "errors": "400 if the user or dashboard of that name doesn't exist"},
-        '/delete_dashboard': {"method": 'POST', "parameters": ["user", "name" ], "side effects": "Deletes the dashboard from the user's folder",  "returns": "The name of the deleted dashboard", "errors": "400 if the user doesn't exist or the dashboard doesn't exist"},
+        '/, /routes': {
+            "method": 'GET',
+            "parameters": [],
+            "side effects": "None",
+            "returns": "Dictionary of routes as a JSON object",
+            "errors": "None"
+        },
+        '/add_user': {"method": 'POST',
+            "parameters": ["user"],
+            "side effects": "adds the user to the database and increments the user count",
+            "returns": "User name and number as a JSON dictionary",
+            "errors": "400 if the user exists"},
+        '/list_user_dashboards/<user>': {
+            "method": 'GET',
+            "parameters":[],
+            "side effects": "None",
+            "returns": "Return a JSON list of all the dashboards published by the user.",
+            "errors": "400 if the user doesn't exist"
+        },
+        '/add_dashboard': {
+            "method": 'POST',
+            "parameter-passing": "JSON body",
+            "parameters": ["user", "name", "body"],
+            "side effects": "Add the dashboard value in the body of the post to the user's folder, under the name chosen by the user, overwriting if the dashboard exists",
+            "returns": "The URL of the dashboard",
+            "errors": "400 if the user doesn't exist"
+        },
+        '/get_dashboard/': {
+            "method": "GET",
+            "parameters": ["user", "name"],
+            "side effects": "None",
+            "returns": "The dashboard as a JSON string",
+            "errors": "400 if the user or dashboard of that name doesn't exist"
+        },
+        '/get_dashboard_link/': {"method": 'GET',
+            "parameters": ["user",
+            "name"],
+            "side effects": "None",
+             "returns": "The URL of the  dashboard as string",
+            "errors": "400 if the user or dashboard of that name doesn't exist"
+        },
+        '/delete_dashboard': {"method": 'POST',
+            "parameters": ["user",
+            "name" ],
+            "side effects": "Deletes the dashboard from the user's folder",
+             "returns": "The name of the deleted dashboard",
+            "errors": "400 if the user doesn't exist or the dashboard doesn't exist"
+        },
 
     })
 
 
 if __name__ == "__main__":
-    app.run(debug = True)
+    app.run(debug = True, threaded = True)
