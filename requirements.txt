@@ -3,3 +3,4 @@ flask-cors
 google-cloud-datastore
 google-cloud-storage
 requests
+gunicorn==20.1.0

@@ -3,6 +3,7 @@ An implementation of the publication server for Galyleo
 '''
 
 from json import dumps
+import os
 
 from google.cloud import datastore, storage
 from flask import Flask, request, abort, jsonify
@@ -13,7 +14,7 @@ datastore_client = datastore.Client()
 storage_client = storage.Client()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 
 # query = datastore_client.query(kind='User')
@@ -235,4 +236,4 @@ def show_routes():
 
 
 if __name__ == "__main__":
-    app.run(debug = True, threaded = True)
+    app.run(debug = True, threaded = True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
