@@ -175,6 +175,24 @@ def delete_dashboard():
         -- user <string>
         -- name <string>
     '''
+    return 'not yet implemented'
+    
+
+@app.route("/get_studio_url")
+def _get_studio_url():
+    '''
+    Get the URL to use for the dashboard studio, depending on the hub and the 
+    language. This should be driven by the datastore, and someday it will be;
+    but for now, just return the standard for everything except localhost and 
+    galyleobeta, which will always default to the experimental dashboards
+    '''
+
+    suffix = 'jp' if 'language' in request.args and request.args.get('language').startswith('ja') else 'en'
+    base = 'https://matt.engagelively.com/users/rick/published'
+    use_beta = {'localhost', 'galyleojupyter-beta'}
+    middle = 'studio-beta' if ('hub' not in request.args) or (request.args.get('hub') in use_beta) else 'studio'
+    return f'{base}/{middle}-{suffix}/index.html'
+    
 
 @app.route('/')
 @app.route('/routes')
@@ -231,9 +249,16 @@ def show_routes():
              "returns": "The name of the deleted dashboard",
             "errors": "400 if the user doesn't exist or the dashboard doesn't exist"
         },
+        '/get_studio_url': {"method": "GET",
+            "parameters": ["hub", "language"],
+            "side effects": "none",
+            "returns": "the URL to use for the studio",
+            "errors": "None"
+        }
 
     })
 
 
 if __name__ == "__main__":
-    app.run(debug = True, threaded = True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    # app.run(debug = True, threaded = True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    app.run(threaded = True)
