@@ -47,6 +47,35 @@ def _find_user_or_abort(user, route):
     abort(400, f'No user in the database with name {user}, route is {route}')
 
 
+def _do_add_user(user_name):
+    # A utility to add a user.  Key assumptions:
+    # 1. The user doesn't exist in the database already
+    # 2. This has been authorized (authentication is OK)
+    # Parameters:
+    #    user_name: name of the user to add
+    # Returns:
+    #    a JSON form of the entity created
+    # should be a more efficient way to do this
+    all_users = list(datastore_client.query(kind='User').fetch())
+    counts = [record["count"] for record in all_users]
+    max_count = max(counts)
+    entity = datastore.Entity(datastore_client.key('User', user_name))
+    entity['count'] = max_count + 1
+    entity['userid'] = user_name
+    datastore_client.put(entity)
+    return jsonify(entity)
+
+def _add_user_if_not_present(user_name):
+    # Add user if not present in the database
+    # Parameters:
+    #    user_name: name of the user to add if not present
+    # Returns: 
+    #    None
+    if _find_user(user_name) is None:
+        _do_add_user(user_name)
+
+
+
 
 @app.route("/add_user", methods=['POST'])
 def add_user():
@@ -63,15 +92,8 @@ def add_user():
     user_name = request.form['user'].lower()
     if _find_user(user_name):
         abort(400, f'User {user_name} is already in the database')
-    # should be a more efficient way to do this
-    all_users = list(datastore_client.query(kind='User').fetch())
-    counts = [record["count"] for record in all_users]
-    max_count = max(counts)
-    entity = datastore.Entity(datastore_client.key('User', user_name))
-    entity['count'] = max_count + 1
-    entity['userid'] = user_name
-    datastore_client.put(entity)
-    return jsonify(entity)
+    return _do_add_user(user_name)
+    
 
 def _user_folder_prefix(user_name, route):
     # return the prefix for the user bucket, to be searched
@@ -83,7 +105,7 @@ def _user_folder_prefix_or_default(user_name):
     # used for anonymous publishing
     if user_name:
         user_record = _find_user(user_name)
-        folder = user_record["count"] if user_record["count"] else 0
+        folder = user_record["count"] if user_record else 0
         return f'dashboards/{folder}'
     return 'dashboards/0'
 
@@ -94,11 +116,23 @@ def list_user_dashboards(user):
     Route parameters:
         -- user <string>
     '''
-    prefix = _user_folder_prefix(user,'/list_user_dashboards')
+    prefix = _user_folder_prefix_or_default(user,'/list_user_dashboards')
     return _list_blobs('user-galyleo-dashboards', prefix)
 
 def _make_url(blob_name):
     return f'https://galyleo.app/{blob_name}'
+
+def _valid_secret(secret):
+    # Return True iff secret is not none and it matches the secret
+    # stored in the environment
+    # Parameters: 
+    # -- secret: the studio_secret passed in the body
+    # Returns:
+    # True iff secret is not None and the secret matches the secret in the environment
+    if secret is None: return False
+    stored_secret = os.environ['studio_secret'] if 'studio_secret' in os.environ else None
+    if stored_secret is None: return False
+    return stored_secret == secret
 
 @app.route("/add_dashboard", methods=['POST'])
 def add_user_dashboard():
@@ -109,6 +143,8 @@ def add_user_dashboard():
         -- user <string>
         -- name <string>
         -- dashboard <JSON file>
+    Optional parameters:
+        -- studio_secret <string>
     '''
     content_type = request.headers.get('Content-Type')
     if content_type == 'application/json':
@@ -120,6 +156,9 @@ def add_user_dashboard():
     if len(missing) > 0:
         abort(400, f'/add_dashboard body missing required fields {missing}')
     user_name = request_body['user'] if "user" in request_body.keys() else None
+    studio_secret = request_body['studio_secret'] if 'studio_secret' in request_body.keys() else None
+    if _valid_secret(studio_secret) and user_name is not None:
+        _add_user_if_not_present(user_name)
     prefix = _user_folder_prefix_or_default(user_name)
     # checks: we should make sure that name is a valid part of a file name
     # we should make sure that dashboard is a valid table
@@ -223,10 +262,10 @@ def show_routes():
         '/add_dashboard': {
             "method": 'POST',
             "parameter-passing": "JSON body",
-            "parameters": ["user", "name", "body"],
-            "side effects": "Add the dashboard value in the body of the post to the user's folder, under the name chosen by the user, overwriting if the dashboard exists",
+            "parameters": ["user", "name", "studio_secret", "body"],
+            "side effects": "Add the dashboard value in the body of the post to the user's folder, under the name chosen by the user, overwriting if the dashboard exists.  Adds the user if the user isn't there, the studio_secret is present and set to the correct value",
             "returns": "The URL of the dashboard",
-            "errors": "400 if the user doesn't exist"
+            "errors": "400 if the user doesn't exist and the studio_secret is not present and not set to the correct value"
         },
         '/get_dashboard/': {
             "method": "GET",
@@ -260,5 +299,5 @@ def show_routes():
 
 
 if __name__ == "__main__":
-    # app.run(debug = True, threaded = True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
-    app.run(threaded = True)
+    app.run(debug = True, threaded = True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    # app.run(threaded = True)
