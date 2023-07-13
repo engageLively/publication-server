@@ -116,7 +116,7 @@ def list_user_dashboards(user):
     Route parameters:
         -- user <string>
     '''
-    prefix = _user_folder_prefix_or_default(user,'/list_user_dashboards')
+    prefix = _user_folder_prefix_or_default(user)
     return _list_blobs('user-galyleo-dashboards', prefix)
 
 def _make_url(blob_name):
