@@ -1,0 +1,20 @@
+{
+    "name": "galyleo-server",
+    "version": "1.0.0",
+    "description": "A Node.js equivalent to the Galyleo Python server",
+    "main": "server.js", 
+    "scripts": {
+      "start": "node server.js" 
+    },
+    "dependencies": {
+      "express": "^4.17.1",
+      "@google-cloud/datastore": "^7.5.0",
+      "@google-cloud/storage": "^6.1.2",
+      "body-parser": "^1.19.0",
+      "cors": "^2.8.5"
+    },
+    "engines": {
+      "node": ">=14.17.6"
+    }
+  }
+  
