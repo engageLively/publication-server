@@ -2,6 +2,8 @@ const express = require('express');
 const { Datastore } = require('@google-cloud/datastore');
 const { Storage } = require('@google-cloud/storage');
 const bodyParser = require('body-parser');
+const path = require('path');
+const fs = require('fs')
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -134,6 +136,18 @@ app.get('/get_studio_url', (req, res) => {
   const middle = useBeta.has(req.query.hub) ? 'studio-beta' : 'studio';
   const url = `https://matt.engagelively.com/users/rick/published/${middle}-${suffix}/index.html`;
   res.json({ url });
+});
+
+
+app.use('/static', (req, res, next) => {  
+  const requestedPath = path.join(__dirname, 'static', req.url);
+  if (fs.statSync(requestedPath).isDirectory()) {
+    const indexPath = path.join(requestedPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      return res.sendFile(indexPath);
+    }
+  }
+  express.static(path.join(__dirname, 'static'))(req, res, next);
 });
 
 function getBlobNameFromRequest(req) {
