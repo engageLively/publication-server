@@ -1,4 +1,7 @@
-.devcontainer
+node/static
+.config
 __pycache__
 google-cloud-sdk
-.config
+node/node_modules
+.devcontainer
+node/package-lock.json
