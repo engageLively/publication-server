@@ -1,6 +1,5 @@
 const express = require('express');
-const { Datastore } = require('@google-cloud/datastore');
-const { Storage } = require('@google-cloud/storage');
+
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs')
@@ -8,9 +7,10 @@ const fs = require('fs')
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-const datastore = new Datastore();
-const storage = new Storage();
+app.use(express.static('static'))
 
+// const cors = require('cors');
+/// app.use(cors)
 app.use(bodyParser.json());
 
 app.use(function(req, res, next) {
@@ -18,106 +18,65 @@ app.use(function(req, res, next) {
   next();
 });
 
-function listBlobs(bucketName, prefix) {
-  const options = {
-    prefix: prefix,
-  };
-
-  return storage.bucket(bucketName).getFiles(options)
-    .then(([files]) => {
-      return files.map(file => file.name.split('/').pop());
-    });
-}
-
-function findUser(userName) {
-  const key = datastore.key(['User', userName.toLowerCase()]);
-  return datastore.get(key)
-    .then(([entity]) => entity);
-}
-
-function addUserIfNotPresent(userName) {
-  return findUser(userName)
-    .then(entity => {
-      if (!entity) {
-        return datastore.runInTransaction(transaction => {
-          const query = datastore.createQuery('User').select(['count']).order('count', { descending: true }).limit(1);
-
-          return datastore.runQuery(query)
-            .then(([results]) => {
-              const maxCount = results.length > 0 ? results[0].count : 0;
-              const userKey = datastore.key(['User', userName.toLowerCase()]);
-              const userEntity = {
-                key: userKey,
-                data: {
-                  count: maxCount + 1,
-                  userid: userName,
-                },
-              };
-              transaction.save(userEntity);
-              return transaction.commit()
-                .then(() => userEntity);
-            });
-        });
-      }
-    });
-}
-
-app.post('/add_user', (req, res) => {
-  const userName = req.body.user.toLowerCase();
-
-  findUser(userName)
-    .then(entity => {
-      if (entity) {
-        res.status(400).json({ error: `User ${userName} is already in the database` });
-      } else {
-        addUserIfNotPresent(userName)
-          .then(userEntity => {
-            res.json(userEntity);
-          });
-      }
-    });
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  next();
 });
 
-app.get('/list_user_dashboards/:user', (req, res) => {
-  const prefix = req.params.user ? `dashboards/${req.params.user}` : 'dashboards/0';
 
-  listBlobs('user-galyleo-dashboards', prefix)
-    .then(blobs => {
-      res.json(blobs);
-    });
+
+const directoryPath = 'static/dashboards'; // Replace with the path to the directory you want to list
+const url = 'http://localhost:8080'
+const publishUrl = `${url}/published/index.html`
+const dashboardUrl  = `${url}/dashboards`
+
+
+app.get('/list_dashboards/', (req, res) => {
+  fs.readdir(directoryPath, (err, fileList) => {
+    if (err) {
+      console.error(`Error reading ${directoryPath}: err`);
+      res.status(500).send('Failed to read dashboard directory, error has been reported')
+    } else {
+      const dashboards = fileList.filter(fileName => fileName.endsWith('.gd.json'))
+      res.status(200).json(dashboards)
+    }
+  })
 });
 
 app.post('/add_dashboard', (req, res) => {
-  const { user, name, dashboard, studio_secret } = req.body;
+  const { name, dashboard, studio_secret } = req.body;
 
-  if (!user || !name || !dashboard) {
-    res.status(400).json({ error: '/add_dashboard requires user, name, and dashboard fields in the request body' });
+  if (!name || !dashboard) {
+    res.status(400).json({ error: '/add_dashboard requires name and dashboard fields in the request body' });
     return;
   }
 
   if (studio_secret && studio_secret === process.env.studio_secret) {
-    addUserIfNotPresent(user)
-      .then(() => {
-        const prefix = user ? `dashboards/${user}` : 'dashboards/0';
-        const blobName = `${prefix}/${name}`;
-        const bucket = storage.bucket('user-galyleo-dashboards');
-        const blob = bucket.file(blobName);
+    const filePath = `${directoryPath}/${name}`;
+    const json = JSON.stringify(dashboard);
+    fs.writeFile(filePath, json, (err) => {
+      if (err) {
+        console.error(`Error writing ${filePath}: err`);
+        res.status(500).send('Failed to write  to dashboard directory, error has been reported')
+      } else {
+        dashboardFile = `${dashboardUrl}/${name}`
+        res.status(200).json({
+          'dashboard': dashboardFile,
+          'view': `${publishURL}?dashboard=${dashboardFile}`
+        })
 
-        blob.save(JSON.stringify(dashboard), { contentType: 'application/json' })
-          .then(() => {
-            res.json({ url: `https://galyleo.app/${blobName}` });
-          })
-          .catch(err => {
-            res.status(500).json({ error: err.message });
-          });
-      });
+      }
+    });
+    /* Store dashboard as the file under fileName */
   } else {
     res.status(400).json({ error: 'Invalid studio_secret' });
   }
 });
 
-app.get('/get_dashboard/:user/:name', (req, res) => {
-  const blobName = getBlobNameFromRequest(req);
+app.get('/get_dashboard/:name', (req, res) => {
+ 
   res.status(200).json({ message: 'Not yet implemented' });
 });
 
@@ -139,7 +98,7 @@ app.get('/get_studio_url', (req, res) => {
 });
 
 
-app.use('/static', (req, res, next) => {  
+/* app.use('/static', (req, res, next) => {  
   const requestedPath = path.join(__dirname, 'static', req.url);
   if (fs.statSync(requestedPath).isDirectory()) {
     const indexPath = path.join(requestedPath, 'index.html');
@@ -148,18 +107,9 @@ app.use('/static', (req, res, next) => {
     }
   }
   express.static(path.join(__dirname, 'static'))(req, res, next);
-});
+}); */
 
-function getBlobNameFromRequest(req) {
-  const user = req.params.user;
-  const name = req.params.name;
 
-  if (!name) {
-    throw new Error('name is a required parameter for this route');
-  }
-
-  return user ? `dashboards/${user}/${name}` : `dashboards/0/${name}`;
-}
 
 // Define a function to return the routes information
 function getRoutesInfo(req, res) {
@@ -171,29 +121,23 @@ function getRoutesInfo(req, res) {
       returns: 'Dictionary of routes as a JSON object',
       errors: 'None',
     },
-    '/add_user': {
-      method: 'POST',
-      parameters: ['user'],
-      side_effects: 'adds the user to the database and increments the user count',
-      returns: 'User name and number as a JSON dictionary',
-      errors: '400 if the user exists',
-    },
-    '/list_user_dashboards/:user': {
+    
+    '/list_dashboards/': {
       method: 'GET',
       parameters: [],
       side_effects: 'None',
-      returns: 'Return a JSON list of all the dashboards published by the user.',
-      errors: '400 if the user doesn\'t exist',
+      returns: 'Return a JSON list of all the dashboards published .',
+      
     },
     '/add_dashboard': {
       method: 'POST',
       parameter_passing: 'JSON body',
-      parameters: ['user', 'name', 'studio_secret', 'body'],
-      side_effects: 'Add the dashboard value in the body of the post to the user\'s folder, under the name chosen by the user, overwriting if the dashboard exists. Adds the user if the user isn\'t there, the studio_secret is present and set to the correct value',
-      returns: 'The URL of the dashboard',
-      errors: '400 if the user doesn\'t exist and the studio_secret is not present and not set to the correct value',
+      parameters: ['name', 'studio_secret', 'dashboard'],
+      side_effects: 'Add the dashboard value in the body of the post to the dashboard folder, under name, overwriting if the dashboard exists. Adds the user if the user isn\'t there, the studio_secret is present and set to the correct value',
+      returns: 'The URL of the dashboard ahd the URL of the published page',
+      errors: '400 if the studio_secret is not present or not set to the correct value',
     },
-    '/get_dashboard/:user/:name': {
+    '/get_dashboard/:name': {
       method: 'GET',
       parameters: ['user', 'name'],
       side_effects: 'None',
@@ -209,18 +153,12 @@ function getRoutesInfo(req, res) {
     },
     '/delete_dashboard': {
       method: 'POST',
-      parameters: ['user', 'name'],
+      parameters: ['name'],
       side_effects: 'Deletes the dashboard from the user\'s folder',
       returns: 'The name of the deleted dashboard',
-      errors: '400 if the user doesn\'t exist or the dashboard doesn\'t exist',
+      errors: '400 if the  dashboard doesn\'t exist',
     },
-    '/get_studio_url': {
-      method: 'GET',
-      parameters: ['hub', 'language'],
-      side_effects: 'none',
-      returns: 'the URL to use for the studio',
-      errors: 'None',
-    },
+    
     '/routes': {
       method: 'GET',
       parameters: [],
