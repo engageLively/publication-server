@@ -13,6 +13,10 @@ app.use(express.static('static'))
 /// app.use(cors)
 app.use(bodyParser.json());
 
+//
+// Set up CORS permissions so we don't run into refusals
+//
+
 app.use(function(req, res, next) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   next();
@@ -25,12 +29,20 @@ app.use(function(req, res, next) {
   next();
 });
 
+// Settings for directories for dashboard on the server and the server URL.  These should probably
+// move to a configuration file
 
 
 const directoryPath = 'static/dashboards'; // Replace with the path to the directory you want to list
 const url = 'http://localhost:8080'
 const publishUrl = `${url}/published/index.html`
 const dashboardUrl  = `${url}/dashboards`
+
+/**
+ * List the published dashboards.  This is a GET method, no parameters.
+ * Note that there is no authentication in this server yet -- we will add authentication
+ * to suit customers' preferences on an individual basis
+ */
 
 
 app.get('/list_dashboards/', (req, res) => {
@@ -44,6 +56,15 @@ app.get('/list_dashboards/', (req, res) => {
     }
   })
 });
+
+/**
+ * Add a dashboard to the dashboards directory.  
+ * POST request
+ * parameters:
+ *     studio_secret: a token indicating that this request is coming from the dashboard editor
+ *     name: name of the dashboard file
+ *     dashboard: the dashboard data structure in JSON format
+ */
 
 app.post('/add_dashboard', (req, res) => {
   const { name, dashboard, studio_secret } = req.body;
@@ -75,27 +96,7 @@ app.post('/add_dashboard', (req, res) => {
   }
 });
 
-app.get('/get_dashboard/:name', (req, res) => {
- 
-  res.status(200).json({ message: 'Not yet implemented' });
-});
 
-app.get('/get_dashboard_url/:user/:name', (req, res) => {
-  const blobName = getBlobNameFromRequest(req);
-  res.json({ url: `https://galyleo.app/${blobName}` });
-});
-
-app.post('/delete_dashboard', (req, res) => {
-  res.status(200).json({ message: 'Not yet implemented' });
-});
-
-app.get('/get_studio_url', (req, res) => {
-  const suffix = req.query.language && req.query.language.startsWith('ja') ? 'jp' : 'en';
-  const useBeta = new Set(['localhost', 'galyleojupyter-beta']);
-  const middle = useBeta.has(req.query.hub) ? 'studio-beta' : 'studio';
-  const url = `https://matt.engagelively.com/users/rick/published/${middle}-${suffix}/index.html`;
-  res.json({ url });
-});
 
 
 /* app.use('/static', (req, res, next) => {  
