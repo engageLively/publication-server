@@ -99,16 +99,28 @@ app.post('/add_dashboard', (req, res) => {
 
 
 
-/* app.use('/static', (req, res, next) => {  
+app.use('/static', (req, res, next) => {  
   const requestedPath = path.join(__dirname, 'static', req.url);
-  if (fs.statSync(requestedPath).isDirectory()) {
-    const indexPath = path.join(requestedPath, 'index.html');
-    if (fs.existsSync(indexPath)) {
-      return res.sendFile(indexPath);
+  console.log('Requested Path:', requestedPath);
+
+  try {
+    if (fs.statSync(requestedPath).isDirectory()) {
+      const indexPath = path.join(requestedPath, 'index.html');
+      console.log('Index Path:', indexPath);
+      
+      if (fs.existsSync(indexPath)) {
+        console.log('Sending Index File:', indexPath);
+        return res.sendFile(indexPath);
+      }
     }
+  } catch (error) {
+    console.error('Error occurred:', error);
   }
+
+  console.log('Serving Static Files:', requestedPath);
   express.static(path.join(__dirname, 'static'))(req, res, next);
-}); */
+});
+
 
 
 
