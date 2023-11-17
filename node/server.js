@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs')
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8888;
 
 app.use(express.static('static'))
 
@@ -13,6 +13,11 @@ app.use(express.static('static'))
 /// app.use(cors)
 app.use(bodyParser.json());
 
+const cors = require('cors')
+
+app.use(cors({
+  origin: '*'
+}));
 //
 // Set up CORS permissions so we don't run into refusals
 //
