@@ -120,7 +120,7 @@ def list_user_dashboards(user):
     return _list_blobs('user-galyleo-dashboards', prefix)
 
 def _make_url(blob_name):
-    return f'https://galyleo.app/{blob_name}'
+    return jsonify({"dashboard": f'https://galyleo.app/{blob_name}'})
 
 def _valid_secret(secret):
     # Return True iff secret is not none and it matches the secret
